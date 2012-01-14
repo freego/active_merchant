@@ -13,8 +13,8 @@ class RemoteXpayTest < Test::Unit::TestCase
     @options = { 
       :order_id => '1',
       :billing_address => address,
-      :description => 'Prova xpay activemerchant'
-      :email => 'prova@freego.it'
+      :description => 'Prova xpay activemerchant',
+      :email => 'prova@freego.it',
       :test => true
     }
   end
