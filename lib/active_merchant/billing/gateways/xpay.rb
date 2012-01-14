@@ -32,7 +32,7 @@ module ActiveMerchant #:nodoc:
       self.homepage_url = 'http://www.cartasi.it/gtwpages/common/index.jsp?id=OiRGdkfJWU'
       
       # The name of the gateway
-      self.display_name = 'Cartasi X-Pay'
+      self.display_name = 'X-Pay Cartasi'
       self.application_id = 'xpay'
       
       self.money_format = :cents
@@ -68,7 +68,7 @@ module ActiveMerchant #:nodoc:
       def confirm
         post = {}
         post['RESPONSE'] = 0
-        commit('confirm', post)
+        commit('confirm', post) # no response
       end
     
       private                       

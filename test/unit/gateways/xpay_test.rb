@@ -4,14 +4,13 @@ class XpayTest < Test::Unit::TestCase
   def setup
     @gateway = XpayGateway.new()
 
-    @credit_card = credit_card
     @amount = 666.66
     
     @options = { 
       :order_id => '1',
       :billing_address => address,
       :description => 'Store Purchase',
-      :email => 'prova@freego.it',
+      :email => 'buyer@example.it',
       :currency => "EUR",
       :test => true
     }
@@ -21,20 +20,8 @@ class XpayTest < Test::Unit::TestCase
     @gateway.expects(:ssl_post).returns(successful_purchase_response)
     
     assert response = @gateway.purchase(@amount, @options)
-    # puts response.to_yaml
     assert_instance_of XpayGateway, @gateway
     assert_success response
-    # assert_equal response.params['MAC'], @gateway.send(:add_mac, {})
-    assert response.test?
-  end
-
-  def test_unsuccessful_request
-    @gateway.expects(:ssl_post).returns(failed_purchase_response)
-    
-    assert response = @gateway.purchase(@amount, @options)
-    
-    assert_instance_of XpayGateway, @gateway
-    assert_failure response
     assert response.test?
   end
 
@@ -53,8 +40,13 @@ class XpayTest < Test::Unit::TestCase
     assert post['ERROR_URL'].length < 260, 'more than 260 chars'
     assert post['ANNULMENT_URL'].length < 260, 'more than 260 chars'
     assert_equal '01.00', post['VERSION_CODE'], 'not developed for this version'
-    assert post['EMAIL'].length < 100, 'more than 100 chars'
-    assert_match /^[a-zA-Z][\w\.-]*[a-zA-Z0-9]@[a-zA-Z0-9][\w\.-]*[a-zA-Z0-9]\.[a-zA-Z][a-zA-Z\.]*[a-zA-Z]$/, post['EMAIL'], 'invalid email address'
+    if post['EMAIL']
+      assert post['EMAIL'].length < 100, 'more than 100 chars'
+      assert_match /^[a-zA-Z][\w\.-]*[a-zA-Z0-9]@[a-zA-Z0-9][\w\.-]*[a-zA-Z0-9]\.[a-zA-Z][a-zA-Z\.]*[a-zA-Z]$/, post['EMAIL'], 'invalid email address'
+    end
+    if post['DESC_ORDER']
+      assert post['DESC_ORDER'].length < 200, 'more than 200 chars'
+    end
     assert_equal 1, post['CO_PLATFORM'].length, 'not 1 char'
     assert_equal 40, post['MAC'].length, 'not 40 chars'
   end
@@ -63,20 +55,10 @@ class XpayTest < Test::Unit::TestCase
   
   # Place raw successful response from gateway here
   def successful_purchase_response
-    success_string = common_purchase_response
-    success_string << "RESPONSE=TRANSACTION_OK"
-  end
-  
-  # Place raw failed response from gateway here
-  def failed_purchase_response
-    fail_string = common_purchase_response
-    fail_string << "RESPONSE=TRANSACTION_KO"
-  end
- 
-   def common_purchase_response
     string = ''
     string << "TERMINAL_ID=#{@gateway.class::TERMINAL_ID}&"
     string << "TRANSACTION_ID=#{@options[:order_id]}&"
+    string << "RESPONSE=TRANSACTION_OK&"
     string << "AUTH_CODE=901867&"
     string << "TRANSACTION_DATE=01/01/2012 16.55.56&"
     string << "CARD_TYPE=VISA&"
@@ -87,7 +69,7 @@ class XpayTest < Test::Unit::TestCase
     string << "REGION=Europe&"
     string << "COUNTRY=Italy&"
     string << "PRODUCT_TYPE=Consumer&"
-    string << "LIABILITY_ SHIFT=N&"
+    string << "LIABILITY_SHIFT=N"
   end
   
 end
