@@ -55,8 +55,9 @@ module ActiveMerchant #:nodoc:
       #     [2000, 'barney@example.com'],
       #     :sender_email => "john@example.com", :return_url => "http://example.com/return", :cancel_url => "http://example.com/cancel"
       #
-      def pay(*args)
-        commit('Pay', build_pay_request(*args))
+      
+      def purchase(money, credit_card_or_reference, options = {})
+        commit('Pay', build_pay_request(money, options))
       end
 
       def payment_details(token, options = {})
@@ -90,40 +91,40 @@ module ActiveMerchant #:nodoc:
         test? ? TEST_URL : LIVE_URL
       end
 
-      def build_pay_request(*args)
-        default_options = args.last.is_a?(Hash) ? args.pop : {}
-        receivers = args.first
+      def build_pay_request(money, options)
+        requires!(options, :primary_receiver, :return_url, :cancel_url)
 
-        requires!(default_options, :return_url, :cancel_url)
-
-        currency = options[:currency] || currency(receivers.first[0])
+        currency = options[:currency] || currency(options[:receivers].first[:currency])
 
         xml = Builder::XmlMarkup.new
-        add_client_details(xml, default_options)
+        add_client_details(xml, options)
         xml.tag! 'actionType', 'PAY'
-        xml.tag! 'feesPayer', fees_payer_option(default_options[:fees_payer]) unless default_options[:fees_payer].blank?
-        xml.tag! 'cancelUrl', default_options[:cancel_url]
+        xml.tag! 'feesPayer', fees_payer_option(options[:fees_payer]) unless options[:fees_payer].blank?
+        xml.tag! 'cancelUrl', options[:cancel_url]
         xml.tag! 'currencyCode', currency
-        xml.tag! 'ipnNotificationUrl', default_options[:ipn_notification_url] unless default_options[:ipn_notification_url].blank?
-        xml.tag! 'logDefaultShippingAddress', true if default_options[:log_default_shipping_address]
-        xml.tag! 'memo', default_options[:memo] unless default_options[:memo].blank?
-        xml.tag! 'pin', default_options[:pin] unless default_options[:pin].blank?
-        xml.tag! 'preapprovalKey', default_options[:preapproval_key] unless default_options[:preapproval_key].blank?
+        xml.tag! 'ipnNotificationUrl', options[:ipn_notification_url] unless options[:ipn_notification_url].blank?
+        xml.tag! 'logDefaultShippingAddress', true if options[:log_default_shipping_address]
+        xml.tag! 'memo', options[:memo] unless options[:memo].blank?
+        xml.tag! 'pin', options[:pin] unless options[:pin].blank?
+        xml.tag! 'preapprovalKey', options[:preapproval_key] unless options[:preapproval_key].blank?
         xml.tag! 'receiverList' do
-          receivers.each do |receiver|
-            options ||= default_options
+          xml.tag! 'receiver' do
+            xml.tag! 'amount', money
+            xml.tag! 'email', options[:primary_receiver]
+            xml.tag! 'primary', true
+          end
+          options[:receivers].each do |receiver|
             xml.tag! 'receiver' do
               xml.tag! 'amount', receiver[:money]
               xml.tag! 'email', receiver[:email]
-              xml.tag! 'primary', true if receiver[:primary]
               #xml.tag! 'paymentType', 'DIGITALGOODS' if receiver[:digital_goods]
             end
           end
         end
-        xml.tag! 'reverseAllParallelPaymentsOnError', true if default_options[:reverse_all_parallel_payments_on_error]
-        xml.tag! 'senderEmail', default_options[:sender_email] unless default_options[:sender_email].blank?
-        xml.tag! 'returnUrl', default_options[:return_url]
-        xml.tag! 'trackingId', default_options[:tracking_id] unless default_options[:tracking_id].blank?
+        xml.tag! 'reverseAllParallelPaymentsOnError', true if options[:reverse_all_parallel_payments_on_error]
+        xml.tag! 'senderEmail', options[:sender_email] unless options[:sender_email].blank?
+        xml.tag! 'returnUrl', options[:return_url]
+        xml.tag! 'trackingId', options[:tracking_id] unless options[:tracking_id].blank?
         xml.target!
       end
       
