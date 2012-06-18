@@ -13,16 +13,25 @@ module ActiveMerchant #:nodoc:
       VOID_ERROR_MESSAGE = "Bogus Gateway: Use authorization number 1 for exception, 2 for error and anything else for success"
       REFUND_ERROR_MESSAGE = "Bogus Gateway: Use trans_id number 1 for exception, 2 for error and anything else for success"
       
+      attr_accessor :tracking_id
+      
       self.supported_countries = ['US']
       self.supported_cardtypes = [:bogus]
       self.homepage_url = 'http://example.com'
       self.display_name = 'Bogus'
       
       def redirect_url_for(token = nil)
-        require 'net/http'
-        url = URI.parse('http://www.url.com/subscribe')
-        post_args1 = { 'email' => params[:email] }
-        resp, data = Net::HTTP.post_form(url, post_args1)
+        # puts 'ahaa'
+        # require 'net/http'
+        # url = notify_cart_url
+        # post_args = { tracking_id: self.tracking_id,  transaction: { '0' => { '.status' => 'Completed' } } }
+        # puts url
+        # puts 'post'
+        # result = Net::HTTP.post_form(url, post_args)
+        # puts url
+        # puts result
+        # puts root_url
+        # resp, data = root_url
       end
       
       def authorize(money, credit_card_or_reference, options = {})
@@ -38,6 +47,7 @@ module ActiveMerchant #:nodoc:
       end
   
       def purchase(money, credit_card_or_reference, options = {})
+        self.tracking_id = options[:tracking_id]
         money = amount(money)
         case normalize(credit_card_or_reference)
         when '1', AUTHORIZATION
@@ -82,11 +92,11 @@ module ActiveMerchant #:nodoc:
         money = amount(money)
         case reference
         when '1'
-          raise Error, REFUND_ERROR_MESSAGE
+          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
         when '2'
           Response.new(false, FAILURE_MESSAGE, {:paid_amount => money, :error => FAILURE_MESSAGE }, :test => true)
         else
-          Response.new(true, SUCCESS_MESSAGE, {:paid_amount => money}, :test => true)
+          raise Error, REFUND_ERROR_MESSAGE
         end
       end
  

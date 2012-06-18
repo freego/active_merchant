@@ -60,6 +60,10 @@ module ActiveMerchant #:nodoc:
         commit('Pay', build_pay_request(money, options))
       end
 
+      def execute_payment(pay_key)
+        commit('ExecutePayment', build_execute_payment_request(pay_key))
+      end
+      
       def payment_details(token, options = {})
         commit('PaymentDetails', build_payment_details_request(token, options))
       end
@@ -72,9 +76,9 @@ module ActiveMerchant #:nodoc:
       def preapproval_details(token, options = {})
         commit('PreapprovalDetails', build_preapproval_details_request(token, options))
       end
-
-      def refund(*args)
-        commit('Refund', build_refund_request(*args))
+      
+      def refund(money, identification, options = {})
+        commit('Refund', build_refund_request(money, options))
       end
 
       def redirect_url_for(token, options = {})
@@ -90,15 +94,28 @@ module ActiveMerchant #:nodoc:
       def endpoint_url
         test? ? TEST_URL : LIVE_URL
       end
+      
+      def set_currency(options)
+        options[:currency] || ( currency(options[:receivers].first[:currency]) if receivers?(options) ) || self.default_currency
+      end
+      
+      def receivers?(options)
+        options[:receivers] && options[:receivers].any?
+      end
+      
+      def build_execute_payment_request(pay_key)
+        xml = Builder::XmlMarkup.new
+        xml.tag! 'payKey', pay_key
+        xml.target!
+      end
 
       def build_pay_request(money, options)
         requires!(options, :primary_receiver, :return_url, :cancel_url)
 
-        currency = options[:currency] || currency(options[:receivers].first[:currency])
-
+        currency = set_currency(options)
         xml = Builder::XmlMarkup.new
         add_client_details(xml, options)
-        xml.tag! 'actionType', 'PAY'
+        xml.tag! 'actionType', options[:pay_primary] ? 'PAY_PRIMARY' : 'PAY'
         xml.tag! 'feesPayer', fees_payer_option(options[:fees_payer]) unless options[:fees_payer].blank?
         xml.tag! 'cancelUrl', options[:cancel_url]
         xml.tag! 'currencyCode', currency
@@ -108,17 +125,9 @@ module ActiveMerchant #:nodoc:
         xml.tag! 'pin', options[:pin] unless options[:pin].blank?
         xml.tag! 'preapprovalKey', options[:preapproval_key] unless options[:preapproval_key].blank?
         xml.tag! 'receiverList' do
-          xml.tag! 'receiver' do
-            xml.tag! 'amount', money
-            xml.tag! 'email', options[:primary_receiver]
-            xml.tag! 'primary', true
-          end
+          receiver(xml, email: options[:primary_receiver], money: money, primary: true)
           options[:receivers].each do |receiver|
-            xml.tag! 'receiver' do
-              xml.tag! 'amount', receiver[:money]
-              xml.tag! 'email', receiver[:email]
-              #xml.tag! 'paymentType', 'DIGITALGOODS' if receiver[:digital_goods]
-            end
+            receiver(xml, email: receiver[:email], money: receiver[:money])
           end
         end
         xml.tag! 'reverseAllParallelPaymentsOnError', true if options[:reverse_all_parallel_payments_on_error]
@@ -161,33 +170,37 @@ module ActiveMerchant #:nodoc:
         xml.target!
       end
 
-      def build_refund_request(*args)
-        default_options = args.last.is_a?(Hash) ? args.pop : {}
-        receivers = if args.first
-                     args.first.is_a?(Array) ? args : [args]
-                   else
-                     []
-                   end
-
-        currency = options[:currency] || (currency(receivers.first[0]) unless receivers.empty?) || self.default_currency
-
+      def build_refund_request(money, options)
+        #requires!(options, :primary_receiver, :return_url, :cancel_url)
+        currency = set_currency(options)
+        
         xml = Builder::XmlMarkup.new
-        add_client_details(xml, default_options)
+        add_client_details(xml, options)
         xml.tag! 'currencyCode', currency
-        xml.tag! 'payKey', default_options[:pay_key] unless default_options[:pay_key].blank?
-        xml.tag! 'trackingId', default_options[:tracking_id] unless default_options[:tracking_id].blank?
-        xml.tag! 'transactionId', default_options[:transaction_id] unless default_options[:transaction_id].blank?
-        xml.tag! 'receivers' do
-          receivers.each do |money, receiver, options|
-            options ||= default_options
-            xml.tag! 'receiver' do
-              xml.tag! 'amount', amount(money)
-              xml.tag! 'email', receiver
-              xml.tag! 'primary', true if options[:primary]
+        xml.tag! 'payKey', options[:pay_key] unless options[:pay_key].blank?
+        xml.tag! 'trackingId', options[:tracking_id] unless options[:tracking_id].blank?
+        xml.tag! 'transactionId', options[:transaction_id] unless options[:transaction_id].blank?
+
+        if options[:primary_receiver] || receivers?(options)
+          xml.tag! 'receivers' do
+            receiver(xml, email: options[:primary_receiver], money: money, primary: true) if options[:primary_receiver]
+            options[:receivers].each do |receiver|
+              receiver(xml, email: receiver[:email], money: receiver[:money])
             end
           end
         end
+          
         xml.target!
+      end
+      
+      def receiver(xml, hash)
+        xml.tag! 'receiver' do
+          xml.tag! 'amount', hash[:money]
+          xml.tag! 'email', hash[:email]
+          xml.tag! 'primary', true if hash[:primary]
+          # TODO: check how digital goods work
+          #xml.tag! 'paymentType', 'DIGITALGOODS' if receiver[:digital_goods]
+        end
       end
 
       def headers
